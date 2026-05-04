@@ -174,7 +174,14 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
                     p *= -1
                 result[key] = round(p, 2)
 
+            elif key == "temp_d7":
+                # BTG656 and similar: temperature encoded as n/100 (same scale as voltage)
+                t = round(n / 100, 1)
+                if t > 10:
+                    result["temp"] = t
+
             elif key == "temp":
+                # Other models: temperature encoded as n-100
                 t = n - 100
                 if t > 10:
                     result[key] = round(t, 1)

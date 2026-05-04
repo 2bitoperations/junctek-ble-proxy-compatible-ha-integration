@@ -19,11 +19,10 @@ CHAR_UUID    = "0000fff1-0000-1000-8000-00805f9b34fb"
 SERVICE_UUID = "0000fff0-0000-1000-8000-00805f9b34fb"
 
 # Known field-tag bytes that appear inside Junctek notifications.
-# d7 is emitted by some models but its meaning is not yet documented.
 JUNCTEK_PARAM_CODES = {
     "c0", "c1",                         # voltage, current
     "d0", "d1", "d2", "d3", "d4",      # soc, direction, ah_remaining, discharge, charge
-    "d5", "d6", "d7", "d8", "d9",      # accum_cap, mins_remaining, unknown, power, temp
+    "d5", "d6", "d7", "d8", "d9",      # accum_cap, mins_remaining, temp(n/100), power, temp(n-100)
     "e6", "e7",                         # full_charge_volt, zero_charge_volt
 }
 
