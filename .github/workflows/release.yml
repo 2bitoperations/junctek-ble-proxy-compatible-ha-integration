@@ -1,0 +1,21 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package integration
+        run: |
+          cd custom_components/junctek_ble
+          zip -r ../../junctek_ble.zip .
+
+      - name: Attach zip to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: junctek_ble.zip
