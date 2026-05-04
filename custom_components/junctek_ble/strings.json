@@ -1,0 +1,18 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Junctek BLE Battery Monitor",
+        "description": "Select your Junctek device from the list of discovered Bluetooth devices, or type the MAC address manually.",
+        "data": {
+          "address": "Bluetooth Address (MAC)",
+          "battery_capacity": "Battery Capacity (Ah)",
+          "battery_voltage": "Nominal Battery Voltage (V)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This device is already configured."
+    }
+  }
+}
