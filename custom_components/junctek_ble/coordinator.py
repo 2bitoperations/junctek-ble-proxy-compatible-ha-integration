@@ -138,8 +138,11 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
 
             if key == "voltage":
                 v = n / 100
-                # Reject values implausibly far below the configured nominal voltage
-                if v > self._battery_voltage * 0.8:
+                # Reject obvious garbage (zeros, startup noise). 5 V is below any real
+                # battery this monitor would be attached to, so it's a safe floor.
+                # The old filter (v > battery_voltage * 0.8) silently dropped valid
+                # readings on 12 V batteries when the config defaulted to 48 V.
+                if v > 5.0:
                     result[key] = round(v, 2)
 
             elif key == "current":

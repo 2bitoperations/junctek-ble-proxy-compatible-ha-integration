@@ -1,7 +1,7 @@
 {
   "domain": "junctek_ble",
   "name": "Junctek BLE Battery Monitor",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "config_flow": true,
   "dependencies": ["bluetooth"],
   "requirements": ["bleak-retry-connector>=3.0.0"],
