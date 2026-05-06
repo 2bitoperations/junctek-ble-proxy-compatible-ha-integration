@@ -113,6 +113,14 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
         icon="mdi:battery-arrow-up",
     ),
     JunctekSensorDescription(
+        key="int_resistance",
+        name="Internal Resistance",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="mΩ",
+        icon="mdi:omega",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    JunctekSensorDescription(
         key="last_message",
         name="Last Message",
         device_class=SensorDeviceClass.TIMESTAMP,
@@ -165,9 +173,6 @@ class JunctekSensor(CoordinatorEntity[JunctekBLECoordinator], SensorEntity):
         if self.coordinator.data is None:
             return None
         value = self.coordinator.data.get(self.entity_description.key)
-        if value is None and self.entity_description.key == "temp":
-            # d9 ("temp") takes priority; fall back to d7 only on devices that lack d9
-            value = self.coordinator.data.get("temp_d7")
         if value is None:
             return None
         if self.entity_description.key == "last_message":
@@ -184,7 +189,4 @@ class JunctekSensor(CoordinatorEntity[JunctekBLECoordinator], SensorEntity):
     def available(self) -> bool:
         if self.coordinator.data is None or not self.coordinator.last_update_success:
             return False
-        key = self.entity_description.key
-        if key == "temp":
-            return "temp" in self.coordinator.data or "temp_d7" in self.coordinator.data
-        return key in self.coordinator.data
+        return self.entity_description.key in self.coordinator.data

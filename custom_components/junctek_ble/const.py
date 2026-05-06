@@ -16,10 +16,10 @@ PARAMS: dict[str, str] = {
     "charge":           "d4",
     "accum_charge_cap": "d5",
     "mins_remaining":   "d6",
-    # d7: temperature at n/100 scale (BTG656 and similar models)
-    "temp_d7":          "d7",
+    # d7: internal resistance in mΩ (value / 100 = mΩ); used as IntRes on KG-F and related devices
+    "int_resistance":   "d7",
     "power":            "d8",
-    # d9: temperature at n-100 scale (other models)
+    # d9: external temperature probe in °C (value - 100); only present when probe is physically connected
     "temp":             "d9",
     "full_charge_volt": "e6",
     "zero_charge_volt": "e7",

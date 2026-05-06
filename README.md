@@ -16,17 +16,20 @@ The [Junctek addon](https://github.com/Tsjippy/ha-addons/tree/main/Junctek) talk
 
 | Sensor | Unit | Notes |
 |--------|------|-------|
-| Voltage | V | Filtered below 80 % of nominal |
+| Voltage | V | Filtered below 5 V to reject startup noise |
 | Current | A | Negative = charging |
 | Power | W | Negative = charging |
-| Temperature | °C | |
-| State of Charge | % | Calculated from remaining capacity |
+| Temperature | °C | Requires an external NTC probe connected to the monitor |
+| State of Charge | % | Calculated from remaining capacity ÷ configured capacity |
 | Remaining Capacity | Ah | |
 | Remaining Time | min | |
 | Accumulated Charge | Ah | |
 | Discharged Today | kWh | Daily total from device |
 | Charged Today | kWh | Daily total from device |
+| Internal Resistance | mΩ | Diagnostic; from device field d7 |
 | Last Message | timestamp | |
+
+> **Temperature note:** The temperature sensor only has data when an external NTC probe is physically plugged into the monitor. Without a probe, the sensor shows *Unavailable*. This is correct — the device does not transmit its internal NTC (used only for over-temperature protection) over BLE.
 
 ## Requirements
 

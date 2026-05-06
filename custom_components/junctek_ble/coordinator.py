@@ -269,16 +269,13 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
                     p *= -1
                 result[key] = round(p, 2)
 
-            elif key == "temp_d7":
-                # BTG656 and similar: temperature encoded as n/100 (same scale as voltage).
-                # Stored separately so d9 ("temp") takes priority when both are present in
-                # merged state — on some devices d7 encodes a non-temperature measurement
-                # that happens to pass the isdigit() filter.
-                # Upper bound of 55°C: filters devices where d7 is not a temperature
-                # register (observed bogus values run 63–73°C on affected hardware).
-                t = round(n / 100, 1)
-                if 10 < t < 55:
-                    result["temp_d7"] = t
+            elif key == "int_resistance":
+                # d7 encodes battery internal resistance in mΩ (n / 100 = mΩ).
+                # Confirmed from Junctek app APK: labelled "IntRes" on KG-F page.
+                # The KL/BTG656 page does not display d7, but the device still transmits it.
+                r = round(n / 100, 2)
+                if r > 0:
+                    result[key] = r
 
             elif key == "temp":
                 # Other models: temperature encoded as n-100
