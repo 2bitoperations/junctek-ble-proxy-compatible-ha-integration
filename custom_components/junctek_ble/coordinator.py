@@ -270,10 +270,13 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
                 result[key] = round(p, 2)
 
             elif key == "temp_d7":
-                # BTG656 and similar: temperature encoded as n/100 (same scale as voltage)
+                # BTG656 and similar: temperature encoded as n/100 (same scale as voltage).
+                # Stored separately so d9 ("temp") takes priority when both are present in
+                # merged state — on some devices d7 encodes a non-temperature measurement
+                # that happens to pass the isdigit() filter.
                 t = round(n / 100, 1)
                 if t > 10:
-                    result["temp"] = t
+                    result["temp_d7"] = t
 
             elif key == "temp":
                 # Other models: temperature encoded as n-100
