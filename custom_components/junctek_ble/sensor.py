@@ -9,6 +9,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_ADDRESS,
@@ -116,6 +117,12 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
         name="Last Message",
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:clock-check",
+    ),
+    JunctekSensorDescription(
+        key="_raw_hex",
+        name="Last Raw Packet",
+        icon="mdi:bug",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
 )
 

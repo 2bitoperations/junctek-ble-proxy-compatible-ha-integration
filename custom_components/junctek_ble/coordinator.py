@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from bleak import BleakClient
 from bleak_retry_connector import establish_connection
@@ -21,6 +21,9 @@ from .const import CHARACTERISTIC_UUID, DOMAIN, PARAMS_KEYS, PARAMS_VALUES
 
 _LOGGER = logging.getLogger(__name__)
 
+_WATCHDOG_INTERVAL = 60      # seconds between watchdog checks
+_STALE_THRESHOLD   = 120     # seconds without data before forcing reconnect
+
 
 class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
     def __init__(
@@ -38,6 +41,8 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
         self._charging = False
         self._cancel_bt_callback: callable | None = None
         self._connect_lock = asyncio.Lock()
+        self._last_data_time: datetime | None = None
+        self._watchdog_task: asyncio.Task | None = None
 
     @property
     def address(self) -> str:
@@ -50,8 +55,12 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
             BluetoothCallbackMatcher(address=self._address),
             BluetoothScanningMode.ACTIVE,
         )
+        self._watchdog_task = self.hass.async_create_task(self._watchdog_loop())
 
     async def async_stop(self) -> None:
+        if self._watchdog_task:
+            self._watchdog_task.cancel()
+            self._watchdog_task = None
         if self._cancel_bt_callback:
             self._cancel_bt_callback()
             self._cancel_bt_callback = None
@@ -59,6 +68,30 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
         self._client = None
         if client and client.is_connected:
             await client.disconnect()
+
+    async def _watchdog_loop(self) -> None:
+        while True:
+            await asyncio.sleep(_WATCHDOG_INTERVAL)
+            await self._check_stale()
+
+    async def _check_stale(self) -> None:
+        if self._last_data_time is None:
+            return
+        age = datetime.now() - self._last_data_time
+        if age < timedelta(seconds=_STALE_THRESHOLD):
+            return
+        _LOGGER.warning(
+            "No data from %s in %.0f s — forcing reconnect",
+            self._address,
+            age.total_seconds(),
+        )
+        client = self._client
+        self._client = None
+        if client:
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
 
     @callback
     def _handle_bluetooth_event(
@@ -106,6 +139,7 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
         try:
             parsed = self._parse(bytes(value))
             if parsed:
+                self._last_data_time = datetime.now()
                 merged = {**(self.data or {}), **parsed}
                 self.async_set_updated_data(merged)
         except Exception as err:
@@ -193,5 +227,6 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
             result["soc"] = round(result["ah_remaining"] / self._battery_capacity * 100, 1)
 
         result["last_message"] = datetime.now().astimezone().isoformat()
+        result["_raw_hex"] = raw.hex()
 
         return result
