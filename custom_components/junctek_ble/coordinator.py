@@ -57,7 +57,9 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
             BluetoothCallbackMatcher(address=self._address),
             BluetoothScanningMode.ACTIVE,
         )
-        self._watchdog_task = self.hass.async_create_task(self._watchdog_loop())
+        self._watchdog_task = self.hass.async_create_background_task(
+            self._watchdog_loop(), "junctek_ble_watchdog"
+        )
 
     async def async_stop(self) -> None:
         if self._watchdog_task:
