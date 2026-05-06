@@ -64,7 +64,7 @@ All confirmed from APK analysis of `app-service.js` (function `KHFstrToObj`, dis
 |-----------|------------------|------------------|------|-------|
 | `c0`      | voltage          | n / 100          | V    | Filtered: only accepted if > 5.0 V |
 | `c1`      | current          | n / 100          | A    | Sign inverted when `_charging` is True |
-| `d0`      | cur_soc          | (raw)            | —    | Not currently displayed |
+| `d0`      | relay_state      | (raw)            | —    | Relay/output control on KL/BTG devices: `"00"`=on, `"99"`=off, `"01"`/`"02"`=protection active. Not displayed. |
 | `d1`      | dir_of_current   | `"01"` = charging| —    | Sets `_charging` flag |
 | `d2`      | ah_remaining     | n / 1000         | Ah   | Also used to compute SOC |
 | `d3`      | discharge        | n / 100000       | kWh  | Clears `_charging` flag |
@@ -77,11 +77,15 @@ All confirmed from APK analysis of `app-service.js` (function `KHFstrToObj`, dis
 | `e6`      | full_charge_volt | (raw)            | —    | Not currently displayed |
 | `e7`      | zero_charge_volt | (raw)            | —    | Not currently displayed |
 
-### Other fields seen in APK but NOT in binary packets
+### Other fields seen in APK but NOT currently in PARAMS
 
 | Field | Meaning | Notes |
 |-------|---------|-------|
+| `b0`  | Device preset battery capacity | n / 10 = Ah. Stored on device; written via `"9ab0" + value + "b0"`. The app reads this back to display the configured capacity. Our integration uses a separately user-configured capacity instead. |
 | `b1`  | Over-temperature protection threshold | Setting (n − 100 = °C). Written via `"9ab1" + value + "b1"` command prefix. Not a live sensor reading. |
+| `b4`  | Low-temperature protection threshold | Written via `"9ad99ab4" + value + "b4"`. |
+| `b2`  | Voltage alignment offset | Written via `"9ac09ab2" + value + "b2"`. |
+| `c4`  | Device address/ID | Raw value displayed as integer. |
 | `f7`  | Temperature unit flag | `"01"` = Fahrenheit, `"00"` = Celsius. Config setting. |
 
 ---
@@ -159,6 +163,8 @@ soc = min(100.0, round(ah_remaining / battery_capacity * 100, 1))
 ```
 
 `battery_capacity` is user-configured at setup (Ah). Device sends `d2` (ah_remaining).
+
+**No chemistry curves exist in this protocol.** The app has no battery chemistry / type selection (LiFePO4, NMC, lead-acid). SOC is purely linear across all device models. The device itself stores a preset capacity in `b0` (n/10 Ah), which it uses for its own remaining-time calculation; the integration duplicates this as a user configuration field.
 
 ---
 

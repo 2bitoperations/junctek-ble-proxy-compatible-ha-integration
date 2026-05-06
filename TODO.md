@@ -2,9 +2,15 @@
 
 ## Potential improvements
 
-- SoC by chemistry: the Junctek app offers different SOC curves (LiFePO4, NMC, lead-acid). We currently use a flat linear capacity calculation. Worth investigating if the device itself transmits a chemistry-corrected SOC in `d0` (cur_soc), and if so, what the encoding is.
+- "current" at odds with "power" sign-wise. when battery is charging, current is negative, but power is positive. discharging = the reverse. make these consistent.
+- `b0` (device preset capacity) is parsed by the device but not by our integration. If we read it from packets we could auto-populate battery capacity instead of requiring user configuration. `b0` tag byte has a non-decimal hex char so it's not currently in PARAMS and would need explicit addition.
 - `e6` / `e7` (full_charge_volt, zero_charge_volt) are parsed but not exposed as sensors. May be useful for diagnostics.
 - Multiple device instances: not tested with more than one BTG656 on the same HA instance.
+
+## Confirmed non-issues
+
+- **No battery chemistry curves** — APK analysis (KHF, KG, KL pages) shows no chemistry/type selector. SOC is linear on all device models: `d2 / b0 × 100%`. Our linear implementation is correct.
+- **d0 is not SOC** — on KL/BTG devices `d0` is relay/output state (`"00"`=on, `"99"`=off, protection states). Relabelled in const.py. Not displayed by the integration.
 
 ## Resolved (kept for context)
 

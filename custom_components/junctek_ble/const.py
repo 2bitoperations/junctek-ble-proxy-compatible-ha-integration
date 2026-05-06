@@ -9,7 +9,7 @@ CONF_BATTERY_VOLTAGE = "battery_voltage"
 PARAMS: dict[str, str] = {
     "voltage":          "c0",
     "current":          "c1",
-    "cur_soc":          "d0",
+    "relay_state":      "d0",   # relay/output state on KL/BTG devices; meaning varies by model
     "dir_of_current":   "d1",
     "ah_remaining":     "d2",
     "discharge":        "d3",
