@@ -274,8 +274,10 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
                 # Stored separately so d9 ("temp") takes priority when both are present in
                 # merged state — on some devices d7 encodes a non-temperature measurement
                 # that happens to pass the isdigit() filter.
+                # Upper bound of 55°C: filters devices where d7 is not a temperature
+                # register (observed bogus values run 63–73°C on affected hardware).
                 t = round(n / 100, 1)
-                if t > 10:
+                if 10 < t < 55:
                     result["temp_d7"] = t
 
             elif key == "temp":
