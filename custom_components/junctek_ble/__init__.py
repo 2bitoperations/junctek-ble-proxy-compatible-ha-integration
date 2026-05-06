@@ -10,12 +10,17 @@ from .coordinator import JunctekBLECoordinator
 PLATFORMS = [Platform.SENSOR]
 
 
+def _entry_value(entry: ConfigEntry, key: str) -> int:
+    """Read a value from options first, falling back to data (set at config time)."""
+    return entry.options.get(key, entry.data[key])
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = JunctekBLECoordinator(
         hass,
         address=entry.data[CONF_ADDRESS],
-        battery_capacity=entry.data[CONF_BATTERY_CAPACITY],
-        battery_voltage=entry.data[CONF_BATTERY_VOLTAGE],
+        battery_capacity=_entry_value(entry, CONF_BATTERY_CAPACITY),
+        battery_voltage=_entry_value(entry, CONF_BATTERY_VOLTAGE),
     )
 
     await coordinator.async_start()
@@ -24,7 +29,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
     return True
+
+
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

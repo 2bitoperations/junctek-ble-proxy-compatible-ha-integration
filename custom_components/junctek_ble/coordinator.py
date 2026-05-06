@@ -223,8 +223,8 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
             elif key == "accum_charge_cap":
                 result[key] = round(n / 1000, 3)
 
-        if "ah_remaining" in result:
-            result["soc"] = round(result["ah_remaining"] / self._battery_capacity * 100, 1)
+        if "ah_remaining" in result and self._battery_capacity > 0:
+            result["soc"] = min(100.0, round(result["ah_remaining"] / self._battery_capacity * 100, 1))
 
         result["last_message"] = datetime.now().astimezone().isoformat()
         result["_raw_hex"] = raw.hex()
