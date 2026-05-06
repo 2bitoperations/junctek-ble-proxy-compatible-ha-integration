@@ -172,6 +172,12 @@ class JunctekSensor(CoordinatorEntity[JunctekBLECoordinator], SensorEntity):
         return value
 
     @property
+    def extra_state_attributes(self) -> dict | None:
+        if self.entity_description.key != "_raw_hex":
+            return None
+        return {"packet_log": list(self.coordinator._packet_log)}
+
+    @property
     def available(self) -> bool:
         return (
             self.coordinator.last_update_success

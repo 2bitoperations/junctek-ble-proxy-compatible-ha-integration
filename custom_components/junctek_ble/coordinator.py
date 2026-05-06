@@ -23,6 +23,7 @@ _LOGGER = logging.getLogger(__name__)
 
 _WATCHDOG_INTERVAL = 60      # seconds between watchdog checks
 _STALE_THRESHOLD   = 120     # seconds without data before forcing reconnect
+_PACKET_LOG_MAX    = 200     # rolling buffer size for CRC/frame diagnostics
 
 
 class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
@@ -43,6 +44,7 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
         self._connect_lock = asyncio.Lock()
         self._last_data_time: datetime | None = None
         self._watchdog_task: asyncio.Task | None = None
+        self._packet_log: list[str] = []
 
     @property
     def address(self) -> str:
@@ -145,7 +147,64 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
         except Exception as err:
             _LOGGER.error("Error processing notification from %s: %s", self._address, err)
 
+    @staticmethod
+    def _split_frames(raw: bytes) -> list[bytes]:
+        """Split a BLE notification payload into bb..ee frames."""
+        frames = []
+        i = 0
+        while i < len(raw):
+            if raw[i] == 0xBB:
+                try:
+                    end = raw.index(0xEE, i + 1)
+                    frames.append(raw[i:end + 1])
+                    i = end + 1
+                except ValueError:
+                    break
+            else:
+                i += 1
+        return frames
+
+    @staticmethod
+    def _checksum_valid(frame: bytes) -> bool:
+        """Validate frame CRC: BCD(sum(bb..pre_checksum) % 100) == checksum_byte."""
+        if len(frame) < 4:
+            return False
+        n = sum(frame[:-2]) % 100
+        expected = ((n // 10) << 4) | (n % 10)
+        return frame[-2] == expected
+
     def _parse(self, raw: bytes) -> dict | None:
+        frames = self._split_frames(raw)
+        valid_frames: list[bytes] = []
+
+        if frames:
+            for frame in frames:
+                valid = self._checksum_valid(frame)
+                self._packet_log.append(f"{'OK' if valid else 'BAD'}:{frame.hex()}")
+                if valid:
+                    valid_frames.append(frame)
+        else:
+            # No bb..ee framing found — log raw and try to parse anyway.
+            self._packet_log.append(f"RAW:{raw.hex()}")
+            valid_frames = [raw]
+
+        while len(self._packet_log) > _PACKET_LOG_MAX:
+            self._packet_log.pop(0)
+
+        result: dict = {}
+        for frame in valid_frames:
+            parsed = self._parse_frame(frame)
+            if parsed:
+                result.update(parsed)
+
+        if not result:
+            return None
+
+        result["last_message"] = datetime.now().astimezone().isoformat()
+        result["_raw_hex"] = raw.hex()
+        return result
+
+    def _parse_frame(self, raw: bytes) -> dict | None:
         hex_str = raw.hex()
         bs = [hex_str[i:i+2] for i in range(0, len(hex_str), 2)]
         bs_rev = list(reversed(bs))
@@ -225,8 +284,5 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
 
         if "ah_remaining" in result and self._battery_capacity > 0:
             result["soc"] = min(100.0, round(result["ah_remaining"] / self._battery_capacity * 100, 1))
-
-        result["last_message"] = datetime.now().astimezone().isoformat()
-        result["_raw_hex"] = raw.hex()
 
         return result
