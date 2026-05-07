@@ -72,7 +72,7 @@ All confirmed from APK analysis of `app-service.js` (function `KHFstrToObj`, dis
 | `d5`      | accum_charge_cap | n / 1000         | Ah   | |
 | `d6`      | mins_remaining   | n                | min  | Time to full (charging) or to empty (discharging) |
 | `d7`      | int_resistance   | n / 100          | mΩ   | Internal resistance — labelled "IntRes" in app on KG-F page; KL/BTG656 transmits but does not display it |
-| `d8`      | power            | n / 100          | W    | Sign inverted when not `_charging` |
+| `d8`      | power            | n / 100          | W    | Sign inverted when `_charging` is True (negative = charging, same convention as current) |
 | `d9`      | temp             | n − 100          | °C   | External temperature probe; only transmitted when probe is physically connected |
 | `e6`      | full_charge_volt | (raw)            | —    | Not currently displayed |
 | `e7`      | zero_charge_volt | (raw)            | —    | Not currently displayed |
@@ -81,7 +81,7 @@ All confirmed from APK analysis of `app-service.js` (function `KHFstrToObj`, dis
 
 | Field | Meaning | Notes |
 |-------|---------|-------|
-| `b0`  | Device preset battery capacity | n / 10 = Ah. Stored on device; written via `"9ab0" + value + "b0"`. The app reads this back to display the configured capacity. Our integration uses a separately user-configured capacity instead. |
+| `b0`  | Device preset battery capacity | n / 10 = Ah. Stored on device; written via `"9ab0" + value + "b0"`. The app reads this back to display the configured capacity. **Our integration writes this on every connect** using the user-configured capacity. |
 | `b1`  | Over-temperature protection threshold | Setting (n − 100 = °C). Written via `"9ab1" + value + "b1"` command prefix. Not a live sensor reading. |
 | `b4`  | Low-temperature protection threshold | Written via `"9ad99ab4" + value + "b4"`. |
 | `b2`  | Voltage alignment offset | Written via `"9ac09ab2" + value + "b2"`. |
@@ -150,7 +150,7 @@ The integration tracks a `_charging` boolean to correctly sign current and power
 - `d3` (discharge) received → `_charging = False`
 - `d1` (dir_of_current) = `"01"` → `_charging = True`
 
-Current is negated when charging. Power is negated when discharging.
+Both current and power are negated when charging (negative = charging, positive = discharging).
 
 ---
 
@@ -177,6 +177,48 @@ soc = min(100.0, round(ah_remaining / battery_capacity * 100, 1))
 
 ---
 
+## Write Commands
+
+Writes go to a separate GATT characteristic (`0000fff2-0000-1000-8000-00805f9b34fb`), one index position up from the notification characteristic. The app discovers it as `characteristics[1]` after service enumeration.
+
+### Frame format
+
+Write frames use the same `BB..EE` framing as notifications:
+
+```
+BB  [command bytes]  [checksum]  EE
+```
+
+`checksum` = BCD-encoded last two decimal digits of the sum of all bytes in the frame (excluding checksum and `EE`). Equivalently: `n = sum(bytes) % 100; checksum_byte = ((n // 10) << 4) | (n % 10)`.
+
+### Encoding a command
+
+The app passes a hex string like `"9ab01000b0"` to `checkAdd()`, which prepends `"bb"`, computes the checksum, appends it and `"ee"`, then calls `hex2buf()` to convert the hex string to raw bytes.
+
+### Capacity preset (`b0`)
+
+Writes the user-configured battery capacity to the device so its own remaining-time calculations stay in sync.
+
+```
+value = int(capacity_ah * 10)          # e.g. 100 Ah → 1000
+value_str = str(value).zfill(even_length)  # pad to even digit count
+command = "9ab0" + value_str + "b0"
+frame = BB + command_bytes + BCD_checksum + EE
+```
+
+Example — 100 Ah:
+- `value = 1000`, `value_str = "1000"`
+- command hex: `9ab01000b0`
+- full frame: `bb 9a b0 10 00 b0 09 ee`
+
+This is sent once after `start_notify` succeeds on each connection.
+
+### Nominal voltage
+
+There is **no write command for nominal voltage**. The voltage range setting in the app is stored in local device storage only — it is never written over BLE. The `battery_voltage` configuration field in this integration is currently unused.
+
+---
+
 ## Packet Log
 
 A rolling 200-entry diagnostic buffer is kept in `coordinator._packet_log`. Each entry is:
@@ -199,6 +241,8 @@ The log is exposed as the `packet_log` extra attribute on the "Last Raw Packet" 
 | 1.0.9   | `d7` moved to separate `temp_d7` key so `d9` could take priority for temperature |
 | 1.0.10  | Added 55°C upper bound filter on `d7` to drop bogus high values |
 | 1.0.11  | `d7` correctly identified as internal resistance (not temperature) via APK analysis; temperature sensor now only uses `d9`; "Internal Resistance" diagnostic sensor added |
+| 1.0.12  | Write capacity preset (`b0`) to device on every connect via `0000fff2-...` characteristic |
+| 1.0.13  | Fixed power sign — now matches current convention (negative = charging, positive = discharging) |
 
 ---
 

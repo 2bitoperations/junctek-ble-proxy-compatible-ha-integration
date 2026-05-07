@@ -17,8 +17,8 @@ The [Junctek addon](https://github.com/Tsjippy/ha-addons/tree/main/Junctek) talk
 | Sensor | Unit | Notes |
 |--------|------|-------|
 | Voltage | V | Filtered below 5 V to reject startup noise |
-| Current | A | Negative = charging |
-| Power | W | Negative = charging |
+| Current | A | Negative = charging, positive = discharging |
+| Power | W | Negative = charging, positive = discharging |
 | Temperature | °C | Requires an external NTC probe connected to the monitor |
 | State of Charge | % | Calculated from remaining capacity ÷ configured capacity |
 | Remaining Capacity | Ah | |

@@ -17,7 +17,7 @@ from homeassistant.components.bluetooth import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import CHARACTERISTIC_UUID, DOMAIN, PARAMS_KEYS, PARAMS_VALUES
+from .const import CHARACTERISTIC_UUID, DOMAIN, PARAMS_KEYS, PARAMS_VALUES, WRITE_CHARACTERISTIC_UUID
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -129,6 +129,7 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
                 await self._client.start_notify(
                     CHARACTERISTIC_UUID, self._notification_handler
                 )
+                await self._write_device_config()
                 _LOGGER.info("Connected to Junctek %s", self._address)
             except Exception as err:
                 _LOGGER.error("Failed to connect to %s: %s", self._address, err)
@@ -138,6 +139,34 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
     def _handle_disconnect(self, client: BleakClient) -> None:
         _LOGGER.debug("Disconnected from %s", self._address)
         self._client = None
+
+    async def _write_device_config(self) -> None:
+        """Write battery capacity preset (b0) to the device after connecting."""
+        if not self._battery_capacity or self._client is None:
+            return
+        payload = self._build_capacity_write(self._battery_capacity)
+        try:
+            await self._client.write_gatt_char(WRITE_CHARACTERISTIC_UUID, payload)
+            _LOGGER.debug("Wrote capacity %d Ah to device %s", self._battery_capacity, self._address)
+        except Exception as err:
+            _LOGGER.warning("Could not write capacity to %s: %s", self._address, err)
+
+    @staticmethod
+    def _frame_command(cmd_hex: str) -> bytes:
+        """Wrap a hex command string in BB..EE framing with BCD checksum."""
+        frame = bytes.fromhex("bb" + cmd_hex)
+        n = sum(frame) % 100
+        checksum = ((n // 10) << 4) | (n % 10)
+        return frame + bytes([checksum, 0xEE])
+
+    @staticmethod
+    def _build_capacity_write(capacity_ah: float) -> bytes:
+        """Build a b0 capacity-preset write frame for the given capacity in Ah."""
+        raw = min(int(capacity_ah * 10), 99999)
+        value_str = str(raw)
+        if len(value_str) % 2:
+            value_str = "0" + value_str
+        return JunctekBLECoordinator._frame_command("9ab0" + value_str + "b0")
 
     async def _notification_handler(self, _sender: int, value: bytearray) -> None:
         try:
@@ -265,7 +294,7 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
 
             elif key == "power":
                 p = n / 100
-                if not self._charging:
+                if self._charging:
                     p *= -1
                 result[key] = round(p, 2)
 
