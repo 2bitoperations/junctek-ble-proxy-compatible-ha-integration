@@ -2,7 +2,7 @@
 
 ## Making a release
 
-Every version bump requires **three steps**. Missing any one of them means the release doesn't land in HACS.
+Every version bump requires **four steps**. Missing any one of them means the release doesn't land in HACS.
 
 ### 1. Bump the version
 
@@ -20,7 +20,16 @@ git commit -m "v1.0.X: <short description>"
 git push
 ```
 
-### 3. Create a GitHub Release
+### 3. Create and push the tag
+
+```bash
+git tag v1.0.X
+git push origin v1.0.X
+```
+
+The tag must exist on the remote before creating the release. `gh release create` can create a tag automatically when releasing from HEAD, but it fails if you point it at a specific commit and the tag doesn't already exist — so it's safest to always create the tag explicitly.
+
+### 4. Create a GitHub Release
 
 ```bash
 gh release create v1.0.X \
