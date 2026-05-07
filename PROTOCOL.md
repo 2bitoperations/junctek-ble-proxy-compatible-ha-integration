@@ -237,11 +237,12 @@ There is **no write command for nominal voltage**. The voltage range setting in 
 
 A rolling 200-entry diagnostic buffer is kept in `coordinator._packet_log`. Each entry is:
 
-- `OK:<hex>` — frame passed CRC
-- `BAD:<hex>` — frame failed CRC (discarded)
-- `RAW:<hex>` — notification had no `BB..EE` framing; attempted raw parse
+- `OK:<hex>` — frame received from device, passed CRC
+- `BAD:<hex>` — frame received from device, failed CRC (discarded)
+- `RAW:<hex>` — notification received with no `BB..EE` framing; attempted raw parse
+- `WRITE:<hex>` — frame sent by the integration to the device
 
-The log is exposed as the `packet_log` extra attribute on the "Last Raw Packet" diagnostic sensor.
+The log is exposed as the `packet_log` extra attribute on the "Last Raw Packet" diagnostic sensor, showing the full bidirectional BLE conversation.
 
 ---
 
@@ -257,9 +258,9 @@ The log is exposed as the `packet_log` extra attribute on the "Last Raw Packet" 
 | 1.0.11  | `d7` correctly identified as internal resistance (not temperature) via APK analysis; temperature sensor now only uses `d9`; "Internal Resistance" diagnostic sensor added |
 | 1.0.12  | Write capacity preset (`b0`) to device on every connect via `0000fff2-...` characteristic |
 | 1.0.13  | Fixed power sign — now matches current convention (negative = charging, positive = discharging) |
-| 1.0.14  | Send initial `9ae0` poll 1 s after subscribing — fixes missing voltage and other fields |
-| 1.0.15  | Write attempts now logged at INFO; sent frames added to packet log as `WRITE:<hex>` entries |
-| 1.0.16  | Fix initial poll command: KL page uses hardcoded `bb9aa90cee`, not `9ae0` (KHF command) |
+| 1.0.14  | Send initial poll 1 s after subscribing — fixes missing voltage and other fields |
+| 1.0.15  | Write attempts logged at INFO; sent frames added to packet log as `WRITE:<hex>` entries |
+| 1.0.16  | Fix poll command: KL/BTG uses hardcoded `bb9aa90cee` (`9aa9`), not `9ae0` (KHF command) |
 
 ---
 

@@ -57,8 +57,8 @@ After installation, go to **Settings → Devices & Services → Add Integration*
 
 The config flow will show Bluetooth devices already seen by HA in a dropdown. If your device isn't listed yet, enter its MAC address manually (`AA:BB:CC:DD:EE:FF`).
 
-**Battery Capacity** and **Nominal Voltage** are used only for State of Charge calculation — they don't affect other sensor values.
+**Battery Capacity** is written to the device on every connect (keeping its internal remaining-time calculation in sync) and is used for State of Charge calculation. **Nominal Voltage** is currently unused — there is no BLE write command for voltage range on these devices.
 
 ## Connection behaviour
 
-The integration registers for Bluetooth advertisements from your device's address. When the device is seen (directly or through a proxy), it connects via GATT and subscribes to characteristic `0000fff1-0000-1000-8000-00805f9b34fb` for push notifications. It reconnects automatically on disconnect.
+The integration registers for Bluetooth advertisements from your device's address. When the device is seen (directly or through a proxy), it connects via GATT and subscribes to characteristic `0000fff1-0000-1000-8000-00805f9b34fb` for push notifications. On each connect it writes the configured battery capacity to the device and sends an initial data poll (`9aa9`) to trigger a full data flush — without this the device does not transmit voltage spontaneously. It reconnects automatically on disconnect.
