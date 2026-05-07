@@ -147,12 +147,17 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
         self._client = None
 
     async def _async_initial_poll(self) -> None:
-        """Send the 9ae0 poll 1 s after subscribing to trigger a full data flush from the device."""
+        """Send the 9aa9 poll 1 s after subscribing to trigger a full data flush from the device.
+
+        The KL page hardcodes this as bb9aa90cee — the checksum 0x0c does not follow the
+        normal BCD formula (which would give 0x10), so we use the raw constant rather than
+        _frame_command("9aa9").
+        """
         await asyncio.sleep(1)
         if self._client is None or not self._client.is_connected:
             return
-        payload = self._frame_command("9ae0")
-        await self._write_to_device(payload, label="initial poll (9ae0)")
+        payload = bytes.fromhex("bb9aa90cee")
+        await self._write_to_device(payload, label="initial poll (9aa9)")
 
     async def _write_device_config(self) -> None:
         """Write battery capacity preset (b0) to the device after connecting."""

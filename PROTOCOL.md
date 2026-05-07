@@ -195,16 +195,17 @@ BB  [command bytes]  [checksum]  EE
 
 The app passes a hex string like `"9ab01000b0"` to `checkAdd()`, which prepends `"bb"`, computes the checksum, appends it and `"ee"`, then calls `hex2buf()` to convert the hex string to raw bytes.
 
-### Initial data poll (`9ae0`)
+### Initial data poll (`9aa9`)
 
-Immediately after subscribing to notifications, the KL/BTG page calls `writeData("9ae0")` with a 1-second delay. This is a request for the device to send a complete data flush — all fields including voltage (`c0`). Without it, the device sends an incomplete set of fields spontaneously and voltage is never transmitted.
+Immediately after subscribing to notifications, the KL/BTG page calls `writeData()` with no argument, which defaults to `"9aa9"`. This is a request for the device to send a complete data flush — all fields including voltage (`c0`). Without it, the device sends an incomplete set of fields spontaneously and voltage is never transmitted.
+
+The app hardcodes this frame as `bb9aa90cee`. The checksum byte `0x0C` does **not** follow the normal BCD formula (which would give `0x10`) — it is a device-specific magic constant and must be used verbatim.
 
 ```
-command = "9ae0"
-frame = BB + 9A E0 + BCD_checksum + EE  →  bb 9a e0 65 ee
+frame (hardcoded): bb 9a a9 0c ee
 ```
 
-KHF and KG pages use the default `writeData()` (no argument), which sends `"9aa9"` (hardcoded as `bb9aa90cee`) — the same concept, different command.
+KHF page uses `writeData("9ae0")` with a 1-second delay and `timeSet()` at 6 seconds — different command, same concept. KG also uses the no-argument default.
 
 This poll is sent once per connection via `_async_initial_poll()`, 1 second after `start_notify` succeeds.
 
@@ -258,6 +259,7 @@ The log is exposed as the `packet_log` extra attribute on the "Last Raw Packet" 
 | 1.0.13  | Fixed power sign — now matches current convention (negative = charging, positive = discharging) |
 | 1.0.14  | Send initial `9ae0` poll 1 s after subscribing — fixes missing voltage and other fields |
 | 1.0.15  | Write attempts now logged at INFO; sent frames added to packet log as `WRITE:<hex>` entries |
+| 1.0.16  | Fix initial poll command: KL page uses hardcoded `bb9aa90cee`, not `9ae0` (KHF command) |
 
 ---
 
