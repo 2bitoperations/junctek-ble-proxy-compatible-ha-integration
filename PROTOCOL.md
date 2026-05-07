@@ -257,6 +257,7 @@ The log is exposed as the `packet_log` extra attribute on the "Last Raw Packet" 
 | 1.0.12  | Write capacity preset (`b0`) to device on every connect via `0000fff2-...` characteristic |
 | 1.0.13  | Fixed power sign — now matches current convention (negative = charging, positive = discharging) |
 | 1.0.14  | Send initial `9ae0` poll 1 s after subscribing — fixes missing voltage and other fields |
+| 1.0.15  | Write attempts now logged at INFO; sent frames added to packet log as `WRITE:<hex>` entries |
 
 ---
 

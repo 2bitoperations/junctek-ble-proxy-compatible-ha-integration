@@ -119,7 +119,7 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
                 return
 
             try:
-                _LOGGER.debug("Connecting to %s", self._address)
+                _LOGGER.info("Connecting to %s", self._address)
                 self._client = await establish_connection(
                     BleakClient,
                     ble_device,
@@ -143,7 +143,7 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
 
     @callback
     def _handle_disconnect(self, client: BleakClient) -> None:
-        _LOGGER.debug("Disconnected from %s", self._address)
+        _LOGGER.info("Disconnected from %s", self._address)
         self._client = None
 
     async def _async_initial_poll(self) -> None:
@@ -152,22 +152,27 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
         if self._client is None or not self._client.is_connected:
             return
         payload = self._frame_command("9ae0")
-        try:
-            await self._client.write_gatt_char(WRITE_CHARACTERISTIC_UUID, payload)
-            _LOGGER.debug("Sent initial poll (9ae0) to %s", self._address)
-        except Exception as err:
-            _LOGGER.warning("Initial poll failed for %s: %s", self._address, err)
+        await self._write_to_device(payload, label="initial poll (9ae0)")
 
     async def _write_device_config(self) -> None:
         """Write battery capacity preset (b0) to the device after connecting."""
         if not self._battery_capacity or self._client is None:
             return
         payload = self._build_capacity_write(self._battery_capacity)
+        await self._write_to_device(payload, label=f"capacity preset ({self._battery_capacity} Ah)")
+
+    async def _write_to_device(self, payload: bytes, label: str) -> None:
+        """Write bytes to the write characteristic, logging the attempt and result."""
+        hex_str = payload.hex()
+        self._packet_log.append(f"WRITE:{hex_str}")
+        while len(self._packet_log) > _PACKET_LOG_MAX:
+            self._packet_log.pop(0)
+        _LOGGER.info("Sending %s to %s: %s", label, self._address, hex_str)
         try:
             await self._client.write_gatt_char(WRITE_CHARACTERISTIC_UUID, payload)
-            _LOGGER.debug("Wrote capacity %d Ah to device %s", self._battery_capacity, self._address)
+            _LOGGER.info("Sent %s to %s OK", label, self._address)
         except Exception as err:
-            _LOGGER.warning("Could not write capacity to %s: %s", self._address, err)
+            _LOGGER.warning("Failed to send %s to %s: %s", label, self._address, err)
 
     @staticmethod
     def _frame_command(cmd_hex: str) -> bytes:
