@@ -195,6 +195,19 @@ BB  [command bytes]  [checksum]  EE
 
 The app passes a hex string like `"9ab01000b0"` to `checkAdd()`, which prepends `"bb"`, computes the checksum, appends it and `"ee"`, then calls `hex2buf()` to convert the hex string to raw bytes.
 
+### Initial data poll (`9ae0`)
+
+Immediately after subscribing to notifications, the KL/BTG page calls `writeData("9ae0")` with a 1-second delay. This is a request for the device to send a complete data flush — all fields including voltage (`c0`). Without it, the device sends an incomplete set of fields spontaneously and voltage is never transmitted.
+
+```
+command = "9ae0"
+frame = BB + 9A E0 + BCD_checksum + EE  →  bb 9a e0 65 ee
+```
+
+KHF and KG pages use the default `writeData()` (no argument), which sends `"9aa9"` (hardcoded as `bb9aa90cee`) — the same concept, different command.
+
+This poll is sent once per connection via `_async_initial_poll()`, 1 second after `start_notify` succeeds.
+
 ### Capacity preset (`b0`)
 
 Writes the user-configured battery capacity to the device so its own remaining-time calculations stay in sync.
@@ -243,6 +256,7 @@ The log is exposed as the `packet_log` extra attribute on the "Last Raw Packet" 
 | 1.0.11  | `d7` correctly identified as internal resistance (not temperature) via APK analysis; temperature sensor now only uses `d9`; "Internal Resistance" diagnostic sensor added |
 | 1.0.12  | Write capacity preset (`b0`) to device on every connect via `0000fff2-...` characteristic |
 | 1.0.13  | Fixed power sign — now matches current convention (negative = charging, positive = discharging) |
+| 1.0.14  | Send initial `9ae0` poll 1 s after subscribing — fixes missing voltage and other fields |
 
 ---
 

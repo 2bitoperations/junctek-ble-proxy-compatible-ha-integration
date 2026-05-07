@@ -130,6 +130,12 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
                     CHARACTERISTIC_UUID, self._notification_handler
                 )
                 await self._write_device_config()
+                # Poll after 1 s — mirrors the app's post-subscribe writeData("9ae0")
+                # which causes the device to send a full data dump (including c0/voltage).
+                # Without this, voltage and other fields are never transmitted.
+                self.hass.async_create_background_task(
+                    self._async_initial_poll(), "junctek_ble_initial_poll"
+                )
                 _LOGGER.info("Connected to Junctek %s", self._address)
             except Exception as err:
                 _LOGGER.error("Failed to connect to %s: %s", self._address, err)
@@ -139,6 +145,18 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
     def _handle_disconnect(self, client: BleakClient) -> None:
         _LOGGER.debug("Disconnected from %s", self._address)
         self._client = None
+
+    async def _async_initial_poll(self) -> None:
+        """Send the 9ae0 poll 1 s after subscribing to trigger a full data flush from the device."""
+        await asyncio.sleep(1)
+        if self._client is None or not self._client.is_connected:
+            return
+        payload = self._frame_command("9ae0")
+        try:
+            await self._client.write_gatt_char(WRITE_CHARACTERISTIC_UUID, payload)
+            _LOGGER.debug("Sent initial poll (9ae0) to %s", self._address)
+        except Exception as err:
+            _LOGGER.warning("Initial poll failed for %s: %s", self._address, err)
 
     async def _write_device_config(self) -> None:
         """Write battery capacity preset (b0) to the device after connecting."""
