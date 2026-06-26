@@ -1,8 +1,8 @@
-name: Release
+name: Auto-release on version bump
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
 
 jobs:
   release:
@@ -12,12 +12,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Read version from manifest
+        id: version
+        run: |
+          VERSION=$(jq -r '.version' custom_components/junctek_ble/manifest.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: tag_check
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v${{ steps.version.outputs.version }}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Package integration
+        if: steps.tag_check.outputs.exists == 'false'
         run: |
           cd custom_components/junctek_ble
           zip -r ../../junctek_ble.zip .
 
-      - name: Attach zip to release
+      - name: Create tag and release
+        if: steps.tag_check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
           files: junctek_ble.zip
+          generate_release_notes: true
