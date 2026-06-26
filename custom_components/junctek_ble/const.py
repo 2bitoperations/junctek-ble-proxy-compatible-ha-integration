@@ -5,6 +5,7 @@ WRITE_CHARACTERISTIC_UUID = "0000fff2-0000-1000-8000-00805f9b34fb"
 
 CONF_BATTERY_CAPACITY = "battery_capacity"
 CONF_BATTERY_VOLTAGE = "battery_voltage"
+CONF_SENSOR_INFIX = "sensor_infix"
 
 # Maps human-readable param names to the two-hex-char codes the device embeds in notifications.
 PARAMS: dict[str, str] = {

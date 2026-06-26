@@ -25,14 +25,14 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_BATTERY_CAPACITY, CONF_BATTERY_VOLTAGE, DOMAIN
+from .const import CONF_BATTERY_CAPACITY, CONF_BATTERY_VOLTAGE, CONF_SENSOR_INFIX, DOMAIN
 from .coordinator import JunctekBLECoordinator
 
 
 @dataclass(frozen=True, kw_only=True)
 class JunctekSensorDescription(SensorEntityDescription):
     key: str
-    data_key: str | None = None  # coordinator dict key; defaults to key when None
+    use_infix: bool = False  # when True, infix is inserted before sensor name in entity_id
 
 
 SENSORS: tuple[JunctekSensorDescription, ...] = (
@@ -45,18 +45,18 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
         icon="mdi:flash-triangle",
     ),
     JunctekSensorDescription(
-        key="diag_current",
-        data_key="current",
+        key="current",
         name="Current",
+        use_infix=True,
         device_class=SensorDeviceClass.CURRENT,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
         icon="mdi:current-ac",
     ),
     JunctekSensorDescription(
-        key="diag_power",
-        data_key="power",
+        key="power",
         name="Power",
+        use_infix=True,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfPower.WATT,
@@ -78,18 +78,18 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
         native_unit_of_measurement="%",
     ),
     JunctekSensorDescription(
-        key="diag_ah_remaining",
-        data_key="ah_remaining",
+        key="ah_remaining",
         name="Remaining Capacity",
+        use_infix=True,
         # No HA device_class for amp-hours; use a plain measurement.
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="Ah",
         icon="mdi:battery-charging",
     ),
     JunctekSensorDescription(
-        key="diag_mins_remaining",
-        data_key="mins_remaining",
+        key="mins_remaining",
         name="Remaining Time",
+        use_infix=True,
         device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTime.MINUTES,
@@ -118,26 +118,26 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
         icon="mdi:battery-arrow-up",
     ),
     JunctekSensorDescription(
-        key="diag_int_resistance",
-        data_key="int_resistance",
+        key="int_resistance",
         name="Internal Resistance",
+        use_infix=True,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="mΩ",
         icon="mdi:omega",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     JunctekSensorDescription(
-        key="diag_last_message",
-        data_key="last_message",
+        key="last_message",
         name="Last Message",
+        use_infix=True,
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:clock-check",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     JunctekSensorDescription(
-        key="diag_raw_hex",
-        data_key="_raw_hex",
+        key="_raw_hex",
         name="Last Raw Packet",
+        use_infix=True,
         icon="mdi:bug",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
@@ -168,7 +168,19 @@ class JunctekSensor(CoordinatorEntity[JunctekBLECoordinator], SensorEntity):
         super().__init__(coordinator)
         self.entity_description = description
         address = entry.data[CONF_ADDRESS]
-        self._attr_unique_id = f"{address}_{description.key}"
+
+        infix = (
+            entry.data.get(CONF_SENSOR_INFIX, "")
+            or entry.options.get(CONF_SENSOR_INFIX, "")
+        ).strip("_").lower()
+
+        if infix and description.use_infix:
+            effective_key = f"{infix}_{description.key}"
+            self._attr_name = f"{infix} {description.name}"
+        else:
+            effective_key = description.key
+
+        self._attr_unique_id = f"{address}_{effective_key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, address)},
             name=f"Junctek Battery Monitor",
@@ -178,23 +190,19 @@ class JunctekSensor(CoordinatorEntity[JunctekBLECoordinator], SensorEntity):
         )
 
     @property
-    def _data_key(self) -> str:
-        return self.entity_description.data_key or self.entity_description.key
-
-    @property
     def native_value(self):
         if self.coordinator.data is None:
             return None
-        value = self.coordinator.data.get(self._data_key)
+        value = self.coordinator.data.get(self.entity_description.key)
         if value is None:
             return None
-        if self._data_key == "last_message":
+        if self.entity_description.key == "last_message":
             return datetime.fromisoformat(value)
         return value
 
     @property
     def extra_state_attributes(self) -> dict | None:
-        if self._data_key != "_raw_hex":
+        if self.entity_description.key != "_raw_hex":
             return None
         return {"packet_log": list(self.coordinator._packet_log)}
 
@@ -202,4 +210,4 @@ class JunctekSensor(CoordinatorEntity[JunctekBLECoordinator], SensorEntity):
     def available(self) -> bool:
         if self.coordinator.data is None or not self.coordinator.last_update_success:
             return False
-        return self._data_key in self.coordinator.data
+        return self.entity_description.key in self.coordinator.data
