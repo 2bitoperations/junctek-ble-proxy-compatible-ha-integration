@@ -1,4 +1,4 @@
-name: Auto-release on version bump
+name: Auto-release on main push
 
 on:
   push:
@@ -6,35 +6,43 @@ on:
 
 jobs:
   release:
+    # Skip if this push is the workflow's own version-bump commit.
+    if: "!contains(github.event.head_commit.message, '[ci bump]')"
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Need full history so we can push back the bump commit.
+          fetch-depth: 0
 
-      - name: Read version from manifest
+      - name: Bump patch version in manifest.json
         id: version
         run: |
-          VERSION=$(jq -r '.version' custom_components/junctek_ble/manifest.json)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          OLD=$(jq -r '.version' custom_components/junctek_ble/manifest.json)
+          MAJOR=$(echo "$OLD" | cut -d. -f1)
+          MINOR=$(echo "$OLD" | cut -d. -f2)
+          PATCH=$(echo "$OLD" | cut -d. -f3)
+          NEW="$MAJOR.$MINOR.$((PATCH + 1))"
+          jq --arg v "$NEW" '.version = $v' custom_components/junctek_ble/manifest.json \
+            > /tmp/manifest.json && mv /tmp/manifest.json custom_components/junctek_ble/manifest.json
+          echo "version=$NEW" >> "$GITHUB_OUTPUT"
 
-      - name: Check if tag already exists
-        id: tag_check
+      - name: Commit version bump
         run: |
-          if git ls-remote --exit-code --tags origin "refs/tags/v${{ steps.version.outputs.version }}" > /dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add custom_components/junctek_ble/manifest.json
+          git commit -m "chore: bump to ${{ steps.version.outputs.version }} [ci bump]"
+          git push
 
       - name: Package integration
-        if: steps.tag_check.outputs.exists == 'false'
         run: |
           cd custom_components/junctek_ble
           zip -r ../../junctek_ble.zip .
 
       - name: Create tag and release
-        if: steps.tag_check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
