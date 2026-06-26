@@ -172,12 +172,14 @@ class JunctekSensor(CoordinatorEntity[JunctekBLECoordinator], SensorEntity):
         # without altering individual sensor display names.
         # e.g. device "Junctek Battery Monitor ts" + sensor "Current"
         #   → sensor.junctek_battery_monitor_ts_current → matches sensor.*_ts_* glob
-        device_id = f"{address}_{infix}" if infix else address
+        # Device identifier is always the MAC address — infix only affects the
+        # device display name so all sensors stay on the same physical device.
         device_name = f"Junctek Battery Monitor {infix}" if infix else "Junctek Battery Monitor"
+        unique_key = f"{infix}_{description.key}" if infix else description.key
 
-        self._attr_unique_id = f"{device_id}_{description.key}"
+        self._attr_unique_id = f"{address}_{unique_key}"
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, device_id)},
+            identifiers={(DOMAIN, address)},
             name=device_name,
             manufacturer="Juntek",
             model="Junctek BLE Battery Monitor",
