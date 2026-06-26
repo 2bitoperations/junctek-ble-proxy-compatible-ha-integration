@@ -32,7 +32,6 @@ from .coordinator import JunctekBLECoordinator
 @dataclass(frozen=True, kw_only=True)
 class JunctekSensorDescription(SensorEntityDescription):
     key: str
-    use_infix: bool = False  # when True, infix is inserted before sensor name in entity_id
 
 
 SENSORS: tuple[JunctekSensorDescription, ...] = (
@@ -47,7 +46,6 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
     JunctekSensorDescription(
         key="current",
         name="Current",
-        use_infix=True,
         device_class=SensorDeviceClass.CURRENT,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
@@ -56,7 +54,6 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
     JunctekSensorDescription(
         key="power",
         name="Power",
-        use_infix=True,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfPower.WATT,
@@ -80,8 +77,6 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
     JunctekSensorDescription(
         key="ah_remaining",
         name="Remaining Capacity",
-        use_infix=True,
-        # No HA device_class for amp-hours; use a plain measurement.
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="Ah",
         icon="mdi:battery-charging",
@@ -89,7 +84,6 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
     JunctekSensorDescription(
         key="mins_remaining",
         name="Remaining Time",
-        use_infix=True,
         device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfTime.MINUTES,
@@ -120,7 +114,6 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
     JunctekSensorDescription(
         key="int_resistance",
         name="Internal Resistance",
-        use_infix=True,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="mΩ",
         icon="mdi:omega",
@@ -129,7 +122,6 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
     JunctekSensorDescription(
         key="last_message",
         name="Last Message",
-        use_infix=True,
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:clock-check",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -137,7 +129,6 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
     JunctekSensorDescription(
         key="_raw_hex",
         name="Last Raw Packet",
-        use_infix=True,
         icon="mdi:bug",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
@@ -169,23 +160,25 @@ class JunctekSensor(CoordinatorEntity[JunctekBLECoordinator], SensorEntity):
         self.entity_description = description
         address = entry.data[CONF_ADDRESS]
 
-        # options overrides data so the user can change it via the options flow
+        # options overrides data so the user can change the infix via the options flow
         if CONF_SENSOR_INFIX in entry.options:
             infix = entry.options[CONF_SENSOR_INFIX]
         else:
             infix = entry.data.get(CONF_SENSOR_INFIX, "")
         infix = infix.strip("_").lower()
 
-        if infix and description.use_infix:
-            effective_key = f"{infix}_{description.key}"
-            self._attr_name = f"{infix} {description.name}"
-        else:
-            effective_key = description.key
+        # Infix is appended to the device name so that all sensors for this device
+        # get "_ts_" (or whatever infix) in their entity_id via the device name slug,
+        # without altering individual sensor display names.
+        # e.g. device "Junctek Battery Monitor ts" + sensor "Current"
+        #   → sensor.junctek_battery_monitor_ts_current → matches sensor.*_ts_* glob
+        device_id = f"{address}_{infix}" if infix else address
+        device_name = f"Junctek Battery Monitor {infix}" if infix else "Junctek Battery Monitor"
 
-        self._attr_unique_id = f"{address}_{effective_key}"
+        self._attr_unique_id = f"{device_id}_{description.key}"
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, address)},
-            name=f"Junctek Battery Monitor",
+            identifiers={(DOMAIN, device_id)},
+            name=device_name,
             manufacturer="Juntek",
             model="Junctek BLE Battery Monitor",
             serial_number=address,
