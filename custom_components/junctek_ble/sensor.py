@@ -32,6 +32,7 @@ from .coordinator import JunctekBLECoordinator
 @dataclass(frozen=True, kw_only=True)
 class JunctekSensorDescription(SensorEntityDescription):
     key: str
+    data_key: str | None = None  # coordinator dict key; defaults to key when None
 
 
 SENSORS: tuple[JunctekSensorDescription, ...] = (
@@ -44,7 +45,8 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
         icon="mdi:flash-triangle",
     ),
     JunctekSensorDescription(
-        key="current",
+        key="diag_current",
+        data_key="current",
         name="Current",
         device_class=SensorDeviceClass.CURRENT,
         state_class=SensorStateClass.MEASUREMENT,
@@ -52,7 +54,8 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
         icon="mdi:current-ac",
     ),
     JunctekSensorDescription(
-        key="power",
+        key="diag_power",
+        data_key="power",
         name="Power",
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
@@ -75,7 +78,8 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
         native_unit_of_measurement="%",
     ),
     JunctekSensorDescription(
-        key="ah_remaining",
+        key="diag_ah_remaining",
+        data_key="ah_remaining",
         name="Remaining Capacity",
         # No HA device_class for amp-hours; use a plain measurement.
         state_class=SensorStateClass.MEASUREMENT,
@@ -83,7 +87,8 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
         icon="mdi:battery-charging",
     ),
     JunctekSensorDescription(
-        key="mins_remaining",
+        key="diag_mins_remaining",
+        data_key="mins_remaining",
         name="Remaining Time",
         device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.MEASUREMENT,
@@ -113,7 +118,8 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
         icon="mdi:battery-arrow-up",
     ),
     JunctekSensorDescription(
-        key="int_resistance",
+        key="diag_int_resistance",
+        data_key="int_resistance",
         name="Internal Resistance",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="mΩ",
@@ -121,13 +127,16 @@ SENSORS: tuple[JunctekSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     JunctekSensorDescription(
-        key="last_message",
+        key="diag_last_message",
+        data_key="last_message",
         name="Last Message",
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:clock-check",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     JunctekSensorDescription(
-        key="_raw_hex",
+        key="diag_raw_hex",
+        data_key="_raw_hex",
         name="Last Raw Packet",
         icon="mdi:bug",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -169,19 +178,23 @@ class JunctekSensor(CoordinatorEntity[JunctekBLECoordinator], SensorEntity):
         )
 
     @property
+    def _data_key(self) -> str:
+        return self.entity_description.data_key or self.entity_description.key
+
+    @property
     def native_value(self):
         if self.coordinator.data is None:
             return None
-        value = self.coordinator.data.get(self.entity_description.key)
+        value = self.coordinator.data.get(self._data_key)
         if value is None:
             return None
-        if self.entity_description.key == "last_message":
+        if self._data_key == "last_message":
             return datetime.fromisoformat(value)
         return value
 
     @property
     def extra_state_attributes(self) -> dict | None:
-        if self.entity_description.key != "_raw_hex":
+        if self._data_key != "_raw_hex":
             return None
         return {"packet_log": list(self.coordinator._packet_log)}
 
@@ -189,4 +202,4 @@ class JunctekSensor(CoordinatorEntity[JunctekBLECoordinator], SensorEntity):
     def available(self) -> bool:
         if self.coordinator.data is None or not self.coordinator.last_update_success:
             return False
-        return self.entity_description.key in self.coordinator.data
+        return self._data_key in self.coordinator.data
