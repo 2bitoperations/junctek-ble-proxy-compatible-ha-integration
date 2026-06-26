@@ -169,10 +169,12 @@ class JunctekSensor(CoordinatorEntity[JunctekBLECoordinator], SensorEntity):
         self.entity_description = description
         address = entry.data[CONF_ADDRESS]
 
-        infix = (
-            entry.data.get(CONF_SENSOR_INFIX, "")
-            or entry.options.get(CONF_SENSOR_INFIX, "")
-        ).strip("_").lower()
+        # options overrides data so the user can change it via the options flow
+        if CONF_SENSOR_INFIX in entry.options:
+            infix = entry.options[CONF_SENSOR_INFIX]
+        else:
+            infix = entry.data.get(CONF_SENSOR_INFIX, "")
+        infix = infix.strip("_").lower()
 
         if infix and description.use_infix:
             effective_key = f"{infix}_{description.key}"
