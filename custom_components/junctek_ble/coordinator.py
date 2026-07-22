@@ -25,6 +25,12 @@ _WATCHDOG_INTERVAL = 60      # seconds between watchdog checks
 _STALE_THRESHOLD   = 120     # seconds without data before forcing reconnect
 _PACKET_LOG_MAX    = 200     # rolling buffer size for CRC/frame diagnostics
 
+# Keys that get averaged across the push-interval window. Everything else is
+# "last value wins" — correct for cumulative TOTAL_INCREASING counters (discharge/
+# charge/accum_charge_cap, which must never be averaged) and for ephemeral/point-in-time
+# fields (mins_remaining, last_message, _raw_hex).
+_AVERAGE_KEYS = {"voltage", "current", "power", "temp", "int_resistance", "ah_remaining", "soc"}
+
 
 class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
     def __init__(
@@ -33,18 +39,27 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
         address: str,
         battery_capacity: int,
         battery_voltage: int,
+        push_interval: int,
     ) -> None:
         super().__init__(hass, _LOGGER, name=DOMAIN)
         self._address = address
         self._battery_capacity = battery_capacity
         self._battery_voltage = battery_voltage
+        self._push_interval = push_interval
         self._client: BleakClient | None = None
         self._charging = False
         self._cancel_bt_callback: callable | None = None
         self._connect_lock = asyncio.Lock()
         self._last_data_time: datetime | None = None
         self._watchdog_task: asyncio.Task | None = None
+        self._publish_task: asyncio.Task | None = None
         self._packet_log: list[str] = []
+
+        # Values accumulated since the last publish. Averaged keys collect a list of
+        # samples; everything else just gets overwritten (last value wins).
+        self._pending_samples: dict[str, list] = {}
+        self._pending_latest: dict = {}
+        self._published_once = False
 
     @property
     def address(self) -> str:
@@ -60,11 +75,17 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
         self._watchdog_task = self.hass.async_create_background_task(
             self._watchdog_loop(), "junctek_ble_watchdog"
         )
+        self._publish_task = self.hass.async_create_background_task(
+            self._publish_loop(), "junctek_ble_publish"
+        )
 
     async def async_stop(self) -> None:
         if self._watchdog_task:
             self._watchdog_task.cancel()
             self._watchdog_task = None
+        if self._publish_task:
+            self._publish_task.cancel()
+            self._publish_task = None
         if self._cancel_bt_callback:
             self._cancel_bt_callback()
             self._cancel_bt_callback = None
@@ -77,6 +98,32 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
         while True:
             await asyncio.sleep(_WATCHDOG_INTERVAL)
             await self._check_stale()
+
+    async def _publish_loop(self) -> None:
+        while True:
+            await asyncio.sleep(self._push_interval)
+            self._flush_pending()
+
+    def _flush_pending(self) -> None:
+        """Aggregate whatever arrived since the last publish and write it to HA.
+
+        Averaged keys collapse to a mean; everything else (counters, timestamps,
+        raw packet dumps) is already the latest value seen, since those overwrite
+        in place as they arrive.
+        """
+        if not self._pending_samples and not self._pending_latest:
+            return
+
+        merged: dict = dict(self._pending_latest)
+        for key, samples in self._pending_samples.items():
+            merged[key] = round(sum(samples) / len(samples), 4)
+
+        self._pending_samples = {}
+        self._pending_latest = {}
+
+        data = {**(self.data or {}), **merged}
+        self.async_set_updated_data(data)
+        self._published_once = True
 
     async def _check_stale(self) -> None:
         if self._last_data_time is None:
@@ -199,10 +246,19 @@ class JunctekBLECoordinator(DataUpdateCoordinator[dict]):
     async def _notification_handler(self, _sender: int, value: bytearray) -> None:
         try:
             parsed = self._parse(bytes(value))
-            if parsed:
-                self._last_data_time = datetime.now()
-                merged = {**(self.data or {}), **parsed}
-                self.async_set_updated_data(merged)
+            if not parsed:
+                return
+            self._last_data_time = datetime.now()
+            for key, val in parsed.items():
+                if key in _AVERAGE_KEYS:
+                    self._pending_samples.setdefault(key, []).append(val)
+                else:
+                    self._pending_latest[key] = val
+
+            # Publish the very first reading immediately so entities don't sit at
+            # "unavailable" for a full push_interval after connecting.
+            if not self._published_once:
+                self._flush_pending()
         except Exception as err:
             _LOGGER.error("Error processing notification from %s: %s", self._address, err)
 

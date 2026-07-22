@@ -7,7 +7,14 @@ from homeassistant.components.bluetooth import async_discovered_service_info
 from homeassistant.const import CONF_ADDRESS
 import homeassistant.helpers.config_validation as cv
 
-from .const import CONF_BATTERY_CAPACITY, CONF_BATTERY_VOLTAGE, CONF_SENSOR_INFIX, DOMAIN
+from .const import (
+    CONF_BATTERY_CAPACITY,
+    CONF_BATTERY_VOLTAGE,
+    CONF_PUSH_INTERVAL,
+    CONF_SENSOR_INFIX,
+    DEFAULT_PUSH_INTERVAL,
+    DOMAIN,
+)
 
 _BATTERY_CAPACITY_DEFAULT = 100
 _BATTERY_VOLTAGE_DEFAULT  = 12
@@ -35,6 +42,7 @@ class JunctekBLEConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_BATTERY_CAPACITY:  user_input[CONF_BATTERY_CAPACITY],
                     CONF_BATTERY_VOLTAGE:   user_input[CONF_BATTERY_VOLTAGE],
                     CONF_SENSOR_INFIX:      user_input.get(CONF_SENSOR_INFIX, ""),
+                    CONF_PUSH_INTERVAL:     user_input.get(CONF_PUSH_INTERVAL, DEFAULT_PUSH_INTERVAL),
                 },
             )
 
@@ -55,6 +63,7 @@ class JunctekBLEConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_BATTERY_CAPACITY, default=_BATTERY_CAPACITY_DEFAULT): cv.positive_int,
                 vol.Required(CONF_BATTERY_VOLTAGE,  default=_BATTERY_VOLTAGE_DEFAULT):  cv.positive_int,
                 vol.Optional(CONF_SENSOR_INFIX,     default=""):                        str,
+                vol.Optional(CONF_PUSH_INTERVAL,    default=DEFAULT_PUSH_INTERVAL):      cv.positive_int,
             }
         )
 
@@ -96,6 +105,10 @@ class JunctekBLEOptionsFlow(config_entries.OptionsFlow):
                     CONF_SENSOR_INFIX,
                     default=current.get(CONF_SENSOR_INFIX, ""),
                 ): str,
+                vol.Optional(
+                    CONF_PUSH_INTERVAL,
+                    default=current.get(CONF_PUSH_INTERVAL, DEFAULT_PUSH_INTERVAL),
+                ): cv.positive_int,
             }
         )
 

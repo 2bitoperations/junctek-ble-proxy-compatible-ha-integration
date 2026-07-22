@@ -4,15 +4,23 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ADDRESS, Platform
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_BATTERY_CAPACITY, CONF_BATTERY_VOLTAGE, DOMAIN
+from .const import (
+    CONF_BATTERY_CAPACITY,
+    CONF_BATTERY_VOLTAGE,
+    CONF_PUSH_INTERVAL,
+    DEFAULT_PUSH_INTERVAL,
+    DOMAIN,
+)
 from .coordinator import JunctekBLECoordinator
 
 PLATFORMS = [Platform.SENSOR]
 
 
-def _entry_value(entry: ConfigEntry, key: str) -> int:
+def _entry_value(entry: ConfigEntry, key: str, default: int | None = None) -> int:
     """Read a value from options first, falling back to data (set at config time)."""
-    return entry.options.get(key, entry.data[key])
+    if default is None:
+        return entry.options.get(key, entry.data[key])
+    return entry.options.get(key, entry.data.get(key, default))
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -21,6 +29,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         address=entry.data[CONF_ADDRESS],
         battery_capacity=_entry_value(entry, CONF_BATTERY_CAPACITY),
         battery_voltage=_entry_value(entry, CONF_BATTERY_VOLTAGE),
+        push_interval=_entry_value(entry, CONF_PUSH_INTERVAL, DEFAULT_PUSH_INTERVAL),
     )
 
     await coordinator.async_start()
